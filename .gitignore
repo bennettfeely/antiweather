@@ -1,0 +1,6 @@
+.sass-cache
+.sass-cache/*
+img
+launch.md
+node_modules
+npm-debug.log
