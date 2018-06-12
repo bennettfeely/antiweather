@@ -1,4 +1,4 @@
-# Antiweather
+# [Antiweather](https://bennettfeely.com/antiweather/)
 
 Antiweather compares the weather in one location on Earth to the weather of its antipode, the exact opposite point on Earth.
 
