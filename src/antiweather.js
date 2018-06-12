@@ -47,7 +47,6 @@ function changeUnits() {
 // Get the location of the user using Algolia Places API
 function getLocation() {
 	// Setup manual input
-	document.querySelector('#search').placeholder = 'Loading search...';
 	var placesAutocomplete = places({
 		apiKey: algolia_key,
 		container: document.querySelector('#search'),
