@@ -8,10 +8,16 @@ var google_places_api_key = 'AIzaSyBwmxzDlhMqLhObyOGd8ai-hnxmQO8k1Bs';
 document.addEventListener('DOMContentLoaded', init, false);
 
 function init() {
-	// If user has set a preferred unit, let's use that unit again via localstorage
-	var stored_unit = store.get('antiweather-units');
-	if (stored_unit !== null) {
-		document.querySelector('[value="' + stored_unit + '"]').checked = true;
+	// If the URL has a specific parameter, we'll use that
+	var query_string = getUrlParameter('units-toggle');
+	if (query_string == 'us' || query_string == 'si') {
+		document.querySelector('[value="' + query_string + '"]').checked = true;
+	} else {
+		// If the URL has no query string, see if we have localstorage saved
+		var stored_unit = store.get('antiweather-units');
+		if (stored_unit !== null) {
+			document.querySelector('[value="' + stored_unit + '"]').checked = true;
+		}
 	}
 
 	// Pre-setup map backgrounds set on the 'burgh, of course
@@ -20,7 +26,6 @@ function init() {
 
 	// Let's start up the search input
 	getLocation();
-
 
 	// Add change listeners to unit toggles
    document.querySelector('#c_toggle').addEventListener('change', changeUnits);
@@ -45,34 +50,35 @@ function changeUnits() {
 	}
 }
 
-// Get the location of the user using Algolia Places API
+// Get the location of the user using Google Places API
 function getLocation() { 
 	var search = document.getElementById('search');
 	var autocomplete = new google.maps.places.Autocomplete(
-		search, 
-		{
+		search, {
 		  	types: ['(cities)'],
 			placeIdOnly: true
 		}
 	);
 	var geocoder = new google.maps.Geocoder;
 
+	// When a item from the dropdown is selected, get the coordinates
 	autocomplete.addListener('place_changed', function() {
 		var place = autocomplete.getPlace();
 
-		if (!place.place_id) { return; }
-
+		// Google makes things complicated as usual, now we will geocode the result
 		geocoder.geocode({ 'placeId': place.place_id }, function(results, status) {
 			if (status !== 'OK') {
+				// Something went terribly wrong
 				window.alert('Geocoder failed due to: ' + status);
 				return;
 			}
+
+			// Get the lat/lng coords and start te search
 			var lat = results[0].geometry.location.lat();
 			var lng = results[0].geometry.location.lng();
 			initSearch(lat, lng);
 
-			console.log(place);
-
+			// Get the name of the home location and set it on the card
 			setLocation('home', place.name);
 		});
 	});
@@ -83,7 +89,7 @@ function initSearch(lat, lng) {
 	// Hopefully hide the keyboard on mobile
 	document.querySelector('#search').click();
 
-	// Get antipodal coordinates
+	// Convert coords to antipodal coords
 	var a_lat = lat * -1;
 	var a_lng = lng * -1;
 	if (a_lng > 0) {
@@ -97,23 +103,63 @@ function initSearch(lat, lng) {
 	getWeather('away', a_lat, a_lng);
 }
 
+// !!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!
+// !!!!!!!!!!!!!!!!!
+
 // Get the geo place name using Open Street Map's reverse geocoding service
+// TODO: USE GOOGLE'S REVERSE GEOCODING API INSTEAD OF THIS CRAP
+// https://developers.google.com/maps/documentation/javascript/examples/geocoding-reverse
+// function getPlacename(location, lat, lng) {
+// 	var request_url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng + '&zoom=5&namedetails=1&addressdetails=0';
+// 	loadJSONP(
+// 		request_url,
+// 		'json_callback',
+// 		function(data) {
+// 			if (data.name == undefined || data.error == 'Unable to geocode') {
+// 				setLocation(location, 'Middle of Nowhere');
+// 			} else {
+// 				setLocation(location, data.name);
+// 			}
+// 		}
+// 	);
+// }
+
+
+// Get the placename with the Google Reverse Geocoding API
 function getPlacename(location, lat, lng) {
-	var request_url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng + '&zoom=5&namedetails=1&addressdetails=0';
-	loadJSONP(
-		request_url,
-		'json_callback',
-		function(data) {
-			if (data.name == undefined || data.error == 'Unable to geocode') {
-				setLocation(location, 'Middle of Nowhere')
+	// Format coords into object Google likes
+	var lat_lng = { lat: lat, lng: lng };
+
+	var geocoder = new google.maps.Geocoder;
+	geocoder.geocode({ 'location': lat_lng }, function(results, status) {
+		console.log(results);
+
+		if (status === 'OK') {
+			if (results[0]) {
+				// We have a result
+				console.log(results.length);
+				var result = results.length - 3;
+				setLocation(location, results[result].formatted_address);
 			} else {
-				setLocation(location, data.name)
+				// We don't have a result, must be in the middle of the ocean
+				setLocation(location, 'Middle of Nowhere');
 			}
+		} else if (status == 'ZERO_RESULTS') {
+			setLocation(location, 'Middle of Nowhere');			
+		} else {
+			// Something went terribly wrong
+			console.log('Geocoder failed due to: ' + status);
+			setLocation(location, 'Somewhere');			
 		}
-	);
+	});
 }
 
-// Set the location in both places on the card
+
+
 function setLocation(location, place_name) {
 	fill(location, 'location', place_name);
 	fill('quick-' + location, 'quick-location', place_name);
@@ -548,6 +594,14 @@ function makeForecastCard(card_data) {
 
 
 // Utilities =======================================================================================
+
+// Get units from url parameter
+function getUrlParameter(name) {
+	name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
+	var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
+	var results = regex.exec(location.search);
+	return results === null ? undefined : decodeURIComponent(results[1].replace(/\+/g, ' '));
+};
 
 // Load Dark Sky API data and reverse geocoding data
 var loadJSONP = (function() {

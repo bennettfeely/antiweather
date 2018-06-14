@@ -223,12 +223,15 @@ button, .share-button, .unit-toggle {
 // Location finder ===================================================
 	.location-finder {
 		position: relative;
-		margin-top: 1rem;
+		margin: .5rem 0 0;
 		border-radius: $radius;
 
-		p { margin-bottom: .5rem; }
+		p { margin: 0 0 .5rem; }
 
-		@media (min-width: $mobile) { margin-right: .5rem; }
+		@media (min-width: $mobile) { 
+			margin: 0 .5rem 0 0;
+		}
+
 		@media (min-width: $tablet) {
 			display: block;
 			width: 150%;
@@ -295,9 +298,9 @@ button, .share-button, .unit-toggle {
 		margin-top: .5rem;
 		color: $black;
 		border: 0;
-		animation: dropdown $transition/2;
 		transform-origin: top left;
-		background: shade($white, 15%);
+		background: shade($white, 10%);
+		animation: dropdown $transition/2;
 
 		@keyframes dropdown {
 			0% {
