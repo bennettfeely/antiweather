@@ -1,8 +1,8 @@
 // Anyone using this code on their own please feel free!
 // But please have the courtesy to register your own API keys (there's two)
 // Thank you!
-var dark_sky_key = 'e6c964e768708278b2dd1e5393296b2e';
-var algolia_key = '3019e561557e0e4b72259f06fdcadaca';
+var dark_sky_api_key = 'e6c964e768708278b2dd1e5393296b2e';
+var google_places_api_key = 'AIzaSyBwmxzDlhMqLhObyOGd8ai-hnxmQO8k1Bs';
 
 // Let's get this party started
 document.addEventListener('DOMContentLoaded', init, false);
@@ -18,8 +18,9 @@ function init() {
 	setupMap('home', 40.4406, -79.9959);
 	setupMap('away', -40.4406, 100.0041);
 
-	// Get location initializes the Algolia input
+	// Let's start up the search input
 	getLocation();
+
 
 	// Add change listeners to unit toggles
    document.querySelector('#c_toggle').addEventListener('change', changeUnits);
@@ -45,65 +46,35 @@ function changeUnits() {
 }
 
 // Get the location of the user using Algolia Places API
-function getLocation() {
-	// Setup manual input
-	var placesAutocomplete = places({
-		apiKey: algolia_key,
-		container: document.querySelector('#search'),
-		type: ['address', 'airport', 'city'],
-		language: 'en',
-		templates: {
-			value: function(suggestion) {
-				return suggestion.name;
-			}
+function getLocation() { 
+	var search = document.getElementById('search');
+	var autocomplete = new google.maps.places.Autocomplete(
+		search, 
+		{
+		  	types: ['(cities)'],
+			placeIdOnly: true
 		}
-	});
+	);
+	var geocoder = new google.maps.Geocoder;
 
-	// Select the first result on clicking the search button
-	var ap_search = document.querySelector('.ap-search');
-	placesAutocomplete.on('suggestions', function(e) {
-		if (e.suggestions.length == 0) {
-			// Disable the search button if there are no results
-			ap_search.disabled = true;
-		} else {
-			// Listen for click event if we have results
-			ap_search.disabled = false;
+	autocomplete.addListener('place_changed', function() {
+		var place = autocomplete.getPlace();
 
-			ap_search.onclick = function() {
-				// Disable search
-				ap_search.disabled = true;
+		if (!place.place_id) { return; }
 
-				// Set input value to what we're searching
-				placesAutocomplete.setVal(e.suggestions[0].name);
-
-				// Fill the 'home' name of the location
-				setLocation('home', e.suggestions[0].name);
-
-				// Get coordinates of selected place
-				var lat = e.suggestions[0].latlng.lat;
-				var lng = e.suggestions[0].latlng.lng;
-				initSearch(lat, lng);
+		geocoder.geocode({ 'placeId': place.place_id }, function(results, status) {
+			if (status !== 'OK') {
+				window.alert('Geocoder failed due to: ' + status);
+				return;
 			}
-		}
-	});
+			var lat = results[0].geometry.location.lat();
+			var lng = results[0].geometry.location.lng();
+			initSearch(lat, lng);
 
-	// Disable the search button when we click the clear button
-	placesAutocomplete.on('clear', function() {
-		ap_search.disabled = true;
-	});
+			console.log(place);
 
-	// Fired when a place is picked
-	placesAutocomplete.on('change', function(e) {
-		// Disable search
-		ap_search.disabled = true;
-
-		// Fill the 'home' name of the location
-		setLocation('home', e.suggestion.name);
-
-		// Get coordinates of selected place
-		var lat = e.suggestion.latlng.lat;
-		var lng = e.suggestion.latlng.lng;
-		initSearch(lat, lng);
+			setLocation('home', place.name);
+		});
 	});
 }
 
@@ -173,7 +144,7 @@ function getWeather(location, lat, lng, pre_placename) {
 
 	// Send request to Dark Sky
 	var unit = document.querySelector('[name="units-toggle"]:checked').value;
-	var request_url = 'https://api.darksky.net/forecast/' + dark_sky_key + '/' + lat + ',' + lng + '?units=' + unit + '&exclude=alerts,hourly,minutely';
+	var request_url = 'https://api.darksky.net/forecast/' + dark_sky_api_key + '/' + lat + ',' + lng + '?units=' + unit + '&exclude=alerts,hourly,minutely';
 	console.log(request_url);
 	loadJSONP(
 		request_url,

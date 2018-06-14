@@ -237,78 +237,37 @@ button, .share-button, .unit-toggle {
 		}
 	}
 
-	.pre-ap-input,
-	.ap-input {
+	.search-input-wrapper {
+		display: block;
+		width: 100%;
+		position: relative;
+	}
+
+	.search-input {
+		font: inherit;
 		border-radius: $radius;
 		border: 0;
 		box-shadow: $shadow;
 		transition: background-color $transition;
-
-		&:focus { box-shadow: inset 0 0 0 .25rem $blue_light, $shadow; }
-	}
-
-	.pre-ap-input {
-		flex: 1;
-		width: 100%;
-		padding-right: 35px;
-		padding-left: 16px;
-		height: 40px;
-		outline: none;
-		font: inherit;
-		line-height: 40px;
 		-webkit-appearance: none;
 		appearance: none;
-		background: $black_light;
-	}
-
-	.search-input-wrapper {
-		display: inline-block;
-		width: calc(100% - 5.5rem);
-
-		@media (min-width: $tablet) { width: 100%; }
-	}
-
-	.ap-search-wrapper {
-		display: inline-block;
-		position: relative;
-		margin-left: .5rem;
-		width: 5rem;
-		vertical-align: top;
-
-		@media (min-width: $tablet) { display: none; }
-	}
-
-	.ap-search {
-		@include button(nth($colors_full, 1));
+		line-height: 1.5rem;
 		width: 100%;
-		line-height: 2.5rem;
-		padding: 0;
-		box-shadow: $shadow;
-		transition: 
-			background-color $transition,
-			color $transition;
+		padding: .5rem 3rem .5rem 1rem;
 
-		&[disabled] {
-			cursor: default;
-			background: $black_light;
-			color: $gray;
-		}
-
-		.is-loading &,
-		.is-loading &[disabled] {
-			color: transparent;
-			background: $black_light;
+		&:focus { 
+			box-shadow: inset 0 0 0 .25rem $blue_light, $shadow;
+			outline: 0;
 		}
 	}
 
-	.ap-search-loading {
+	.loading-spinner-wrapper {
 		display: flex;
 		align-items: center;
 		justify-content: center;
 		position: absolute;
 		top: 0;
-		left: 0;
-		right: 0;
+		right: .5rem;
 		bottom: 0;
 		z-index: 10;
 		opacity: 0;
@@ -316,18 +275,21 @@ button, .share-button, .unit-toggle {
 		pointer-events: none;
 		transition: transform $transition, opacity $transition;
 
+		.loading-spinner {
+			border-color: $black $black transparent transparent;
+		}
+
 		.is-loading & {
 			opacity: 1;
-			transform: scale(1,1,1);
+			transform: scale3d(1,1,1);
 		}
 	}
 
-	.ap-input { background: $white; }
-
-	.ap-dropdown-menu {
-		width: calc(100% + 5.5rem);
-		text-align: left;
+	.pac-container {
+		font: inherit;
 		font-size: smaller;
+		text-align: left;
+		width: 100%;
 		border-radius: $radius;
 		box-shadow: 0 .25rem 1rem rgba($black, .5);
 		margin-top: .5rem;
@@ -335,6 +297,7 @@ button, .share-button, .unit-toggle {
 		border: 0;
 		animation: dropdown $transition/2;
 		transform-origin: top left;
+		background: shade($white, 15%);
 
 		@keyframes dropdown {
 			0% {
@@ -342,32 +305,29 @@ button, .share-button, .unit-toggle {
 				opacity: 0;
 			}
 		}
-
-		@media (min-width: $tablet) { width: 100%; }
 	}
 
-	.ap-suggestion {
+	.pac-item {
 		padding: 0 1rem;
 		margin: 0;
-		height: 2.5em;
-		line-height: 2.5em;
-		border-bottom: 1px solid $off_white;
-		transition: background $transition/2;
+		line-height: 3em;
+		background: $white;
+		cursor: pointer;
 
-		em { background: $blue_light; }
-
+		&:first-child { border: 0; }
 		&:last-child { border-bottom: 1px solid $off_white; }
 
-		&:hover {
-			background: $off_white;
-			transition-duration: 0s;
+		&:hover,
+		&.pac-item-selected {
+			background: mix($blue_light, $white);
 		}
-		&:active { background: $blue_light; }
 	}
 
-	.ap-suggestion-icon { display: none; }
-	.ap-name { font-weight: bold; }
-	.ap-address { color: $black; }
+	.pac-matched {
+		background: $blue_light;
+	}
+
+	.pac-icon { display: none; }
 
 
 // Switch units ======================================================
@@ -1007,7 +967,11 @@ canvas {
 }
 
 .share-wrapper { 
-	display: inline-block;
+	display: block;
+
+	@media (min-width: $mobile) {
+		display: inline-block;
+	}
 
 	@media (min-width: $tablet) { float: right; }
 }
@@ -1015,7 +979,7 @@ canvas {
 .share-button {
 	display: inline-block;
 	padding: 0 .75rem;
-	line-height: 2rem;
+	line-height: 1.75rem;
 	margin-left: .5rem;
 }
 
