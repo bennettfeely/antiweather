@@ -712,12 +712,12 @@ canvas {
 
 
 // Current Weather Data ==============================================
-.coordinates-wrapper {
+.geo-wrapper {
 	border-bottom: 1px solid $off_white;
 	padding: .5rem;
 }
 
-.coordinates, .location, .summary, .grid-item {
+.coordinates, .elevation, .location, .summary, .grid-item {
 	color: $black;
 	opacity: 0;
 	transition: opacity $transition;
@@ -725,7 +725,11 @@ canvas {
 	.has-weather & { opacity: 1; }
 }
 
-.coordinates { font-size: smaller; }
+.coordinates, .elevation { 
+	font-size: smaller;
+}
+
+.prefix { font-weight: bold; }
 
 .location {
 	margin: 1rem;

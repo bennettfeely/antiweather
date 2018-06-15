@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', init, false);
 
 function init() {
 	// If the URL has a specific parameter, we'll use that
-	var query_string = getUrlParameter('units-toggle');
+	var query_string = _getUrlParameter('units-toggle');
 	if (query_string == 'us' || query_string == 'si') {
 		document.querySelector('[value="' + query_string + '"]').checked = true;
 	} else {
@@ -67,19 +67,20 @@ function getLocation() {
 
 		// Google makes things complicated as usual, now we will geocode the result
 		geocoder.geocode({ 'placeId': place.place_id }, function(results, status) {
+			console.log(results);
+			console.log(status);
 			if (status !== 'OK') {
 				// Something went terribly wrong
 				window.alert('Geocoder failed due to: ' + status);
-				return;
+			} else {
+				// Get the lat/lng coords and start te search
+				var lat = results[0].geometry.location.lat();
+				var lng = results[0].geometry.location.lng();
+				initSearch(lat, lng);
+
+				// Get the name of the home location and set it on the card
+				setLocation('home', place.name);
 			}
-
-			// Get the lat/lng coords and start te search
-			var lat = results[0].geometry.location.lat();
-			var lng = results[0].geometry.location.lng();
-			initSearch(lat, lng);
-
-			// Get the name of the home location and set it on the card
-			setLocation('home', place.name);
 		});
 	});
 }
@@ -103,32 +104,6 @@ function initSearch(lat, lng) {
 	getWeather('away', a_lat, a_lng);
 }
 
-// !!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!
-// !!!!!!!!!!!!!!!!!
-
-// Get the geo place name using Open Street Map's reverse geocoding service
-// TODO: USE GOOGLE'S REVERSE GEOCODING API INSTEAD OF THIS CRAP
-// https://developers.google.com/maps/documentation/javascript/examples/geocoding-reverse
-// function getPlacename(location, lat, lng) {
-// 	var request_url = 'https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=' + lat + '&lon=' + lng + '&zoom=5&namedetails=1&addressdetails=0';
-// 	loadJSONP(
-// 		request_url,
-// 		'json_callback',
-// 		function(data) {
-// 			if (data.name == undefined || data.error == 'Unable to geocode') {
-// 				setLocation(location, 'Middle of Nowhere');
-// 			} else {
-// 				setLocation(location, data.name);
-// 			}
-// 		}
-// 	);
-// }
-
-
 // Get the placename with the Google Reverse Geocoding API
 function getPlacename(location, lat, lng) {
 	// Format coords into object Google likes
@@ -136,30 +111,27 @@ function getPlacename(location, lat, lng) {
 
 	var geocoder = new google.maps.Geocoder;
 	geocoder.geocode({ 'location': lat_lng }, function(results, status) {
-		console.log(results);
-
 		if (status === 'OK') {
 			if (results[0]) {
-				// We have a result
-				console.log(results.length);
+				// Get the city name of the result
 				var result = results.length - 3;
 				setLocation(location, results[result].formatted_address);
 			} else {
-				// We don't have a result, must be in the middle of the ocean
+				// We still don't have a result, must be in the middle of the ocean
 				setLocation(location, 'Middle of Nowhere');
 			}
 		} else if (status == 'ZERO_RESULTS') {
+			// We don't have a result, must be in the middle of the ocean
 			setLocation(location, 'Middle of Nowhere');			
 		} else {
 			// Something went terribly wrong
-			console.log('Geocoder failed due to: ' + status);
 			setLocation(location, 'Somewhere');			
+			console.log('Geocoder failed due to: ' + status);
 		}
 	});
 }
 
-
-
+// Because there's several ways of getting a location name and three places to put it, this fills in everything for a given location
 function setLocation(location, place_name) {
 	fill(location, 'location', place_name);
 	fill('quick-' + location, 'quick-location', place_name);
@@ -191,17 +163,50 @@ function getWeather(location, lat, lng, pre_placename) {
 	// Send request to Dark Sky
 	var unit = document.querySelector('[name="units-toggle"]:checked').value;
 	var request_url = 'https://api.darksky.net/forecast/' + dark_sky_api_key + '/' + lat + ',' + lng + '?units=' + unit + '&exclude=alerts,hourly,minutely';
-	console.log(request_url);
-	loadJSONP(
-		request_url,
-		'callback',
-		function(data) {
+	
+	JSONP({
+		url: request_url,
+		success: function(data) {
+			// We got the weather
 			extractWeather(location, lat, lng, pre_placename, data);
+		},
+		error: function(error) {
+			// We have an error, let's stop showing loading indicators
+			setTimeout(function(){
+				document.querySelector('html').classList.remove('is-loading');
+				document.querySelector('.home').classList.remove('is-loading-home');
+				document.querySelector('.away').classList.remove('is-loading-away');
+				document.querySelector('.home').classList.remove('has-weather');
+				document.querySelector('.away').classList.remove('has-weather');
+				document.querySelector('.quick-wrapper').classList.remove('has-weather');
+			}, 600);
 		}
-	);
+	});
 }
 
-// Extract only the data we need for the card
+// Get the elevation of the location
+function getElevation(location, lat, lng, units) {
+	var elevator = new google.maps.ElevationService;
+	elevator.getElevationForLocations({
+		'locations': [{ lat: lat, lng: lng }]
+	}, function(results, status) {
+		if (status === 'OK') {
+			if (results[0]) {
+				var elevation = formatElevation(results[0].elevation, units);
+				fill(location, 'elevation', elevation);
+			} else {
+				fill(location, 'elevation', 'N/A');
+			}
+		} else {
+			fill(location, 'elevation', 'N/A');
+		}
+	});
+
+
+
+}
+
+// Extract only the data we need for the cards
 function extractWeather(location, lat, lng, pre_placename, data) {
 	// Data for currently card
 	var currently_card_data = {
@@ -256,11 +261,14 @@ function fillCurrentlyCard(card_data) {
 
 	// Coordinates
 	if (card_data.lat !== undefined && card_data.lng !== undefined) {
-		var coordinates = _formatCoords(card_data.lat, card_data.lng);
+		var coordinates = '<span class="prefix">Coordinates: </span>' + formatCoords(card_data.lat, card_data.lng);
 		fill(l, 'coordinates', coordinates);
 	} else {
 		fill(l, 'coordinates', 'Coordinates not available');
 	}
+
+	// Elevation
+	getElevation(l, card_data.lat, card_data.lng, card_data.units);
 
 	// Set placename
 	if (card_data.pre_placename !== undefined) {
@@ -276,7 +284,7 @@ function fillCurrentlyCard(card_data) {
 	// Icon + Temperature
 	if (card_data.temperature !== undefined) {
 		var icon = '<svg><use xlink:href="#' + card_data.icon + '"></use></svg>';
-		var temperature = _formatTemp(card_data.temperature);
+		var temperature = formatTemp(card_data.temperature);
 		fill(l, 'temperature', icon + temperature);
 		fill('quick-' + l, 'quick-temperature', temperature);
 	} else {
@@ -285,7 +293,7 @@ function fillCurrentlyCard(card_data) {
 	}
 
 	// Summary
-	var summary = _formatSummary(card_data);
+	var summary = formatSummary(card_data);
 	fill(l, 'summary', summary);	
 	fill('quick-' + l, 'quick-summary', card_data.currentlySummary);	
 
@@ -298,12 +306,12 @@ function fillCurrentlyCard(card_data) {
 	fill(l, 'date', current_date);
 
 	// Apparent Temperature
-	var apparent_temperature = _formatTemp(card_data.apparentTemperature);
+	var apparent_temperature = formatTemp(card_data.apparentTemperature);
 	fill(l, 'apparenttemperature', apparent_temperature);
 
 	// Cloudiness
 	if (card_data.cloudCover !== undefined) {
-		var cloud_cover = _formatPct(card_data.cloudCover);
+		var cloud_cover = formatPct(card_data.cloudCover);
 		fill(l, 'cloudcover', cloud_cover);
 	} else {
 		fill(l, 'cloudcover', '<span class="not-available">N/A</span>');		
@@ -311,11 +319,11 @@ function fillCurrentlyCard(card_data) {
 
 	// Wind Speed
 	if (card_data.windSpeed !== undefined) {
-		var wind_speed = _formatSpeed(card_data.windSpeed, card_data.units);
+		var wind_speed = formatSpeed(card_data.windSpeed, card_data.units);
 
 		// Wind Direction
 		if (card_data.windBearing !== undefined) {
-			var wind_bearing = _formatBearing(card_data.windBearing);
+			var wind_bearing = formatBearing(card_data.windBearing);
 			var wind = wind_speed + ' ' + wind_bearing;
 		} else {
 			var wind = wind_speed;
@@ -328,7 +336,7 @@ function fillCurrentlyCard(card_data) {
 
 	// Wind Gust
 	if (card_data.windGust !== undefined) {
-		var wind_gust = _formatSpeed(card_data.windGust, card_data.units);
+		var wind_gust = formatSpeed(card_data.windGust, card_data.units);
 		fill(l, 'windgust', wind_gust);
 	} else {
 		fill(l, 'windgust', '<span class="not-available">N/A</span>');		
@@ -336,7 +344,7 @@ function fillCurrentlyCard(card_data) {
 
 	// Humidity
 	if (card_data.humidity !== undefined) {
-		var humidity = _formatPct(card_data.humidity);
+		var humidity = formatPct(card_data.humidity);
 		fill(l, 'humidity', humidity);
 	} else {
 		fill(l, 'humidity', '<span class="not-available">N/A</span>');		
@@ -344,7 +352,7 @@ function fillCurrentlyCard(card_data) {
 
 	// Dew Point
 	if (card_data.dewPoint !== undefined) {
-		var dew_point = _formatTemp(card_data.dewPoint);
+		var dew_point = formatTemp(card_data.dewPoint);
 		fill(l, 'dewpoint', dew_point);
 	} else {
 		fill(l, 'dewpoint', '<span class="not-available">N/A</span>');
@@ -352,7 +360,7 @@ function fillCurrentlyCard(card_data) {
 
 	// Barometric Pressure
 	if (card_data.pressure !== undefined) {
-		var pressure = _formatPressure(card_data.pressure, card_data.units);
+		var pressure = formatPressure(card_data.pressure, card_data.units);
 		fill(l, 'pressure', pressure);
 	} else {
 		fill(l, 'pressure', '<span class="not-available">N/A</span>');
@@ -360,7 +368,7 @@ function fillCurrentlyCard(card_data) {
 
 	// UV Index
 	if (card_data.uv !== undefined) {
-		var uv = _formatUv(card_data.uv);
+		var uv = formatUv(card_data.uv);
 		fill(l, 'uv', uv);
 	} else {
 		fill(l, 'uv', '<span class="not-available">N/A</span>');
@@ -368,7 +376,7 @@ function fillCurrentlyCard(card_data) {
 
 	// Ozone Index
 	if (card_data.ozone !== undefined) {
-		var ozone = _formatOzone(card_data.ozone);
+		var ozone = formatOzone(card_data.ozone);
 		fill(l, 'ozone', ozone);
 	} else {
 		fill(l, 'ozone', '<span class="not-available">N/A</span>');
@@ -376,7 +384,7 @@ function fillCurrentlyCard(card_data) {
 
 	// Visibility
 	if (card_data.visibility !== undefined) {
-		var visibility = _formatDistance(card_data.visibility, card_data.units);
+		var visibility = formatDistance(card_data.visibility, card_data.units);
 		fill(l, 'visibility', visibility);
 	} else {
 		fill(l, 'visibility', '<span class="not-available">N/A</span>');
@@ -403,7 +411,6 @@ function fillCurrentlyCard(card_data) {
 		document.querySelector('html').classList.remove('is-loading');
 		document.querySelector('.' + l).classList.remove('is-loading-' + l);
 		document.querySelector('.' + l).classList.add('has-weather');
-		document.querySelector('.quick-' + l).classList.remove('is-loading-' + l);
 		document.querySelector('.quick-wrapper').classList.add('has-weather');
 	}, 400);
 }
@@ -424,7 +431,7 @@ function cardColor(location, units, temp) {
 
 // Convert temperature to a 0-10 scale
 function cardColorScale(units, temp) {
-	if (units == 'us' || units == 'uk2') {
+	if (units == 'us') {
 		if (temp >= 100) { var scale = 10; } else
 		if (temp >= 90) { var scale = 9; } else
 		if (temp >= 80) { var scale = 8; } else
@@ -436,7 +443,7 @@ function cardColorScale(units, temp) {
 		if (temp >= 20) { var scale = 2; } else
 		if (temp >= 10) { var scale = 1; } else
 		if (temp < 10) { var scale = 0; }
-	} else if (units == 'si' || units == 'ca') {
+	} else if (units == 'si') {
 		if (temp >= 37.7) { var scale = 10; } else
 		if (temp >= 32.2) { var scale = 9; } else
 		if (temp >= 26.7) { var scale = 8; } else
@@ -461,8 +468,6 @@ function setupMap(location, lat, lng) {
 
 	// Set the map resolution
 	var size = 1000;
-	var sphere = { type: 'Sphere' };
-
 	var projection = d3.geo.orthographic()
 		.scale(size / 2.1)
 		.clipAngle(90)
@@ -497,17 +502,9 @@ function setupMap(location, lat, lng) {
 		context.clearRect(0, 0, size, size);
 
 		context.beginPath();
-		path(sphere);
+		path({ type: 'Sphere' });
 		context.fillStyle = 'rgba(0,0,0,.3)';
 		context.fill();
-
-		context.save();
-		context.translate(size / 2, 0);
-		context.scale(-1, 1);
-		context.translate(-size / 2, 0);
-		projection.rotate([(lng), (lat)]);
-
-		context.restore();
 
 		projection.rotate([(-lng), (-lat)]);
 
@@ -558,7 +555,7 @@ function makeForecastCard(card_data) {
 		
 		// High Temperature + Card Color
 		if (day_card_data.temperatureHigh !== undefined) {
-			var temperature_high = _formatTemp(day_card_data.temperatureHigh);
+			var temperature_high = formatTemp(day_card_data.temperatureHigh);
 			var class_name = ' ' + cardColorScale(card_data.units, day_card_data.temperatureHigh);
 		} else {
 			var temperature_high = '--&deg;';
@@ -567,7 +564,7 @@ function makeForecastCard(card_data) {
 
 		// Low Temperature
 		if (day_card_data.temperatureLow !== undefined) {
-			var temperature_low = _formatTemp(day_card_data.temperatureLow);
+			var temperature_low = formatTemp(day_card_data.temperatureLow);
 		} else {
 			var temperature_low = '--&deg;';			
 		}
@@ -595,35 +592,19 @@ function makeForecastCard(card_data) {
 
 // Utilities =======================================================================================
 
+// JSONP by larryosborn
+// https://github.com/larryosborn/JSONP
+(function(){var e,n,r,o,t,l,u,d;r=function(e){return window.document.createElement(e)},o=window.encodeURIComponent,u=Math.random,e=function(e){var o,l,u,i,a,c,f;if(null==e&&(e={}),c={data:e.data||{},error:e.error||t,success:e.success||t,beforeSend:e.beforeSend||t,complete:e.complete||t,url:e.url||""},c.computedUrl=n(c),0===c.url.length)throw new Error("MissingUrl");return i=!1,c.beforeSend({},c)!==!1&&(u=e.callbackName||"callback",l=e.callbackFunc||"jsonp_"+d(15),o=c.data[u]=l,window[o]=function(e){return window[o]=null,c.success(e,c),c.complete(e,c)},f=r("script"),f.src=n(c),f.async=!0,f.onerror=function(e){return c.error({url:f.src,event:e}),c.complete({url:f.src,event:e},c)},f.onload=f.onreadystatechange=function(){var e,n;if(!(i||"loaded"!==(e=this.readyState)&&"complete"!==e))return i=!0,f?(f.onload=f.onreadystatechange=null,null!=(n=f.parentNode)&&n.removeChild(f),f=null):void 0},a=window.document.getElementsByTagName("head")[0]||window.document.documentElement,a.insertBefore(f,a.firstChild)),{abort:function(){return window[o]=function(){return window[o]=null},i=!0,(null!=f?f.parentNode:void 0)?(f.onload=f.onreadystatechange=null,f.parentNode.removeChild(f),f=null):void 0}}},t=function(){},n=function(e){var n;return n=e.url,n+=e.url.indexOf("?")<0?"?":"&",n+=l(e.data)},d=function(e){var n;for(n="";n.length<e;)n+=u().toString(36).slice(2,3);return n},l=function(e){var n,r,t;return n=function(){var n;n=[];for(r in e)t=e[r],n.push(o(r)+"="+o(t));return n}(),n.join("&")},("undefined"!=typeof define&&null!==define?define.amd:void 0)?define(function(){return e}):("undefined"!=typeof module&&null!==module?module.exports:void 0)?module.exports=e:this.JSONP=e}).call(this);
+
+
+
 // Get units from url parameter
-function getUrlParameter(name) {
+function _getUrlParameter(name) {
 	name = name.replace(/[\[]/, '\\[').replace(/[\]]/, '\\]');
 	var regex = new RegExp('[\\?&]' + name + '=([^&#]*)');
 	var results = regex.exec(location.search);
 	return results === null ? undefined : decodeURIComponent(results[1].replace(/\+/g, ' '));
 };
-
-// Load Dark Sky API data and reverse geocoding data
-var loadJSONP = (function() {
-	var unique = 0;
-	return function(url, callback_name, callback, context) {
-		var name = '_jsonp_' + unique++;
-		url += '&' + callback_name + '=' + name;
-
-		var script = document.createElement('script');
-		script.type = 'text/javascript';
-		script.src = url;
-
-		window[name] = function(data) {
-			callback.call((context || window), data);
-			document.getElementsByTagName('head')[0].removeChild(script);
-			script = null;
-			delete window[name];
-		};
-
-		document.getElementsByTagName('head')[0].appendChild(script);
-	};
-})();
 
 // Fill a value with HTML
 function fill(location, name, value) {
@@ -636,19 +617,19 @@ function append(location, name, value) {
 }
 
 // Format geocoordinate values
-function _formatCoords(lat, lng) {
+function formatCoords(lat, lng) {
 	return lat.toFixed(4) + ', ' + lng.toFixed(4);
 }
 
 // Format temperature value
-function _formatTemp(temp) {
+function formatTemp(temp) {
 	return Math.round(temp) + '&deg;';
 }
 
 // Format a overall weather summary
-function _formatSummary(card_data) {
+function formatSummary(card_data) {
 	if (card_data.currentlySummary !== undefined) {
-		var currently = _formatCurrentlySummary(card_data.currentlySummary);
+		var currently = formatCurrentlySummary(card_data.currentlySummary);
 	} else {
 		var currently = '';
 	}
@@ -667,7 +648,7 @@ function _formatSummary(card_data) {
 }
 
 // Format just the currently summary
-function _formatCurrentlySummary(currently_summary) {
+function formatCurrentlySummary(currently_summary) {
 	// Makes just the first letter of the currently summary uppercase
 	var currently_summary = currently_summary.toLowerCase();
 	
@@ -675,36 +656,60 @@ function _formatCurrentlySummary(currently_summary) {
 }
 
 // Format percentage value
-function _formatPct(pct) {
+function formatPct(pct) {
 	return Math.round(pct * 100) + '%';
 }
 
 // Format speed value with correct units
-function _formatSpeed(speed, units) {
-	if (units == 'us' || units == 'uk2') { var unit = 'mph'; }
-	if (units == 'si' || units == 'ca') { var unit = 'km/h'; }
+function formatSpeed(speed, units) {
+	if (units == 'us') { var unit = 'mph'; }
+	if (units == 'si') { var unit = 'km/h'; }
 
 	return Math.round(speed) + ' ' + unit;
 }
 
 // Format barometric pressure value with correct units
-function _formatPressure(pressure, units) {
-	if (units == 'us' || units == 'uk2') { var unit = 'mb'; }
-	if (units == 'si' || units == 'ca') { var unit = 'hPa'; }
+function formatPressure(pressure, units) {
+	if (units == 'us') { var unit = 'mb'; }
+	if (units == 'si') { var unit = 'hPa'; }
 
 	return Math.round(pressure) + ' ' + unit;
 }
 
 // Format visibility distance value with correct units
-function _formatDistance(distance, units) {
-	if (units == 'us' || units == 'uk2') { var unit = 'mi'; }
-	if (units == 'si' || units == 'ca') { var unit = 'km'; }
+function formatDistance(distance, units) {
+	if (units == 'us') { var unit = 'mi'; }
+	if (units == 'si') { var unit = 'km'; }
 
 	return Math.round(distance) + ' ' + unit;
 }
 
+// Format elevation value
+function formatElevation(elevation, units) {
+	if (elevation >= 0) {
+		var prefix = '<span class="prefix">Elevation: </span>';
+	} else {
+		var prefix = '<span class="prefix">Ground Elevation: </span>';		
+	}
+
+	if (units == 'us') {
+		// Convert Google-returned elevation in meters to feet, and round
+		return prefix + Math.round(elevation * 3.28084).toLocaleString() + ' ft';
+	} else if (units == 'si') {
+		// Show more precise elevation if necessary
+		if (elevation <= -10 || elevation >= 10) {
+			// Round elevation to whole number
+			return prefix + Math.round(elevation).toLocaleString() + ' m';
+		} else {
+			// Format elevation to one decimal point (e.g. 4.2 m)
+			return prefix + (Math.round(elevation*10)/10).toLocaleString() + ' m';
+		}
+
+	}
+}
+
 // Format and convert degrees bearing to cardinal direction
-function _formatBearing(deg) {
+function formatBearing(deg) {
 	var val = Math.floor((deg / 22.5) + .5);
 	// var arr = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
 	var arr = ['N','NE','E','SE','S','SW','W','NW'];
@@ -712,7 +717,7 @@ function _formatBearing(deg) {
 }
 
 // // Format UV Index
-function _formatUv(uv) {
+function formatUv(uv) {
 	if (uv > 11) { var index = 'Extreme'; } else
 	if (uv > 8) { var index = 'Very high'; } else
 	if (uv > 6) { var index = 'High'; } else
@@ -724,6 +729,6 @@ function _formatUv(uv) {
 }
 
 // // Format ozone in Dobson Units (DU)
-function _formatOzone(ozone) {
+function formatOzone(ozone) {
 	return Math.round(ozone) + ' DU';
 }
