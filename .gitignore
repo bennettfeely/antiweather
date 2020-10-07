@@ -1,6 +1,6 @@
+.DS_Store
 .sass-cache
 .sass-cache/*
-img
-launch.md
+.Trashes
 node_modules
 npm-debug.log
