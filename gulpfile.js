@@ -1,16 +1,22 @@
 // Include plugins ===================================================
 var gulp = require("gulp");
-var autoprefixer = require("gulp-autoprefixer");
+
+// Dev
 var browserSync = require("browser-sync");
-var cssmin = require("gulp-cssmin");
-var htmlmin = require("gulp-htmlmin");
-var markdown = require("gulp-markdown");
 var pump = require("pump");
 var rename = require("gulp-rename");
-var sass = require("gulp-sass");
+
+// HTML
 var slim = require("gulp-slim");
-var babel = require("gulp-babel");
-var uglify = require("gulp-uglify");
+var htmlmin = require("gulp-htmlmin");
+
+// CSS
+var sass = require("gulp-sass");
+var autoprefixer = require("gulp-autoprefixer");
+var cssmin = require("gulp-cssmin");
+
+// JS
+const terser = require("gulp-terser");
 
 // Browser Sync ======================================================
 gulp.task("sync", function () {
@@ -26,15 +32,6 @@ gulp.task("refresh", function () {
 			stream: true,
 		})
 	);
-});
-
-// Compile Markdown ==================================================
-gulp.task("markdown", function () {
-	return gulp
-		.src("src/*.md")
-		.pipe(markdown())
-		.pipe(rename("body.html"))
-		.pipe(gulp.dest(""));
 });
 
 // Compile HTML ======================================================
@@ -62,19 +59,10 @@ gulp.task("html", function () {
 		);
 });
 
-// JS ================================================================
-// gulp.task("js", function () {
-// 	return gulp.pipe(
-// 		browserSync.reload({
-// 			stream: true,
-// 		})
-// 	);
-// });
-
 // Compile CSS =======================================================
 gulp.task("css", function () {
 	return gulp
-		.src("src/*.scss")
+		.src("src/css/*.scss")
 		.pipe(sass())
 		.on("error", sass.logError)
 		.pipe(
@@ -90,7 +78,39 @@ gulp.task("css", function () {
 				path.extname = ".css";
 			})
 		)
-		.pipe(gulp.dest(""))
+		.pipe(gulp.dest("css"))
+		.pipe(
+			browserSync.reload({
+				stream: true,
+			})
+		);
+});
+
+// JS ================================================================
+gulp.task("js", function () {
+	return gulp
+		.src("src/js/*.js")
+		.pipe(terser())
+		.pipe(
+			rename(function (path) {
+				path.basename.replace(".min", "");
+				path.basename += ".min";
+				path.extname = ".js";
+			})
+		)
+		.pipe(gulp.dest("js"))
+		.pipe(
+			browserSync.reload({
+				stream: true,
+			})
+		);
+});
+
+// JSON ================================================================
+gulp.task("json", function () {
+	return gulp
+		.src("src/js/*.json")
+		.pipe(gulp.dest("js"))
 		.pipe(
 			browserSync.reload({
 				stream: true,
@@ -100,10 +120,10 @@ gulp.task("css", function () {
 
 // Watch Files For Changes ===========================================
 gulp.task("watch", ["sync"], function () {
-	gulp.watch("src/*.md", ["markdown", "html"]);
 	gulp.watch("src/*.slim", ["html"]);
-	gulp.watch("src/antiweather.js", ["refresh"]);
-	gulp.watch("src/*.scss", ["css"]);
+	gulp.watch("src/js/*.js", ["js"]);
+	gulp.watch("src/js/*.json", ["json"]);
+	gulp.watch("src/css/*.scss", ["css"]);
 });
 
 // Default Task ======================================================
