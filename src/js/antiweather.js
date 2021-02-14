@@ -1,3 +1,9 @@
+// consider using Troposphere when Dark Sky API shuts down
+
+// --> https://www.troposphere.io/developer
+
+// Or openweathermap.org
+
 var dark_sky_api_key = "e6c964e768708278b2dd1e5393296b2e";
 // 	{
 //		h: "Home location",
